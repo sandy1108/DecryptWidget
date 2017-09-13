@@ -23,12 +23,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
 
 public class DecryptActivity extends Activity {
 
     public int FILE_SELECT_CODE = 0;
     private String apkPath = "";
     private String filePath = "";
+    private ArrayList<String> decryptPaths = new ArrayList<String>();
     private TextView widgetPathView;
 
     @Override
@@ -104,6 +106,12 @@ public class DecryptActivity extends Activity {
                 String zename = entry.getName();
                 if (zename.startsWith("assets/widget/")) {
                     String tempFilePath = filePath + "/" + zename;
+                    if (tempFilePath.endsWith(".html") || tempFilePath.endsWith(".css")
+                            || tempFilePath.endsWith(".js") || tempFilePath.endsWith(".htm")
+                            || tempFilePath.endsWith(".xml")) {
+                        decryptPaths.add(tempFilePath);
+                    }
+
                     File tempFileDir = new File(tempFilePath).getParentFile();
                     if (!tempFileDir.exists()) {
                         tempFileDir.mkdirs();
@@ -127,52 +135,47 @@ public class DecryptActivity extends Activity {
 
     private void decryptWidget(String appkey) {
         try {
-            String widgetPath = filePath + "/" + "assets/widget/";
-            String[] lists = new File(widgetPath).list();
-            for (int i = 0; i < lists.length; i++) {
-                if (lists[i].endsWith(".html") || lists[i].endsWith(".css") || lists[i].endsWith(".js")
-                        || lists[i].endsWith(".htm") || lists[i].endsWith(".xml")) {
-                    String path = widgetPath + lists[i];
-                    File file = new File(path);
-                    InputStream input = new FileInputStream(file);
-                    InputStream tempInput = new FileInputStream(file);
-                    BOMInputStream bomInputStream = new BOMInputStream(tempInput);
-                    if (bomInputStream.hasBOM()) {
-                        input = bomInputStream;
-                    } else {
-                        bomInputStream.close();
-                        tempInput.close();
-                    }
+            for (int i = 0; i < decryptPaths.size(); i++) {
+                String path = decryptPaths.get(i);
+                File file = new File(path);
+                InputStream input = new FileInputStream(file);
+                InputStream tempInput = new FileInputStream(file);
+                BOMInputStream bomInputStream = new BOMInputStream(tempInput);
+                if (bomInputStream.hasBOM()) {
+                    input = bomInputStream;
+                } else {
+                    bomInputStream.close();
+                    tempInput.close();
+                }
 
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    byte[] buffer = new byte[1024];
-                    int len;
-                    while ((len = input.read(buffer)) > -1) {
-                        baos.write(buffer, 0, len);
-                    }
-                    baos.flush();
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buffer = new byte[1024];
+                int len;
+                while ((len = input.read(buffer)) > -1) {
+                    baos.write(buffer, 0, len);
+                }
+                baos.flush();
 
-                    InputStream is1 = new ByteArrayInputStream(baos.toByteArray());
-                    InputStream is2 = new ByteArrayInputStream(baos.toByteArray());
-                    boolean isV = DESUtility.isEncrypted(is1);
-                    if (isV) {
-                        byte[] data = DESUtility.transStreamToBytes(is2, is2.available());
-                        String fileName = DESUtility.getFileNameWithNoSuffix(path);
-                        String result = DESUtility.htmlDecode(data, fileName, appkey);
-                        InputStream is = new ByteArrayInputStream(result.getBytes());
-                        if (file.exists()) {
-                            file.delete();
-                            FileOutputStream out = new FileOutputStream(new File(path));
-                            byte[] c = new byte[1024 * 2];
-                            int slen;
-                            while ((slen = is.read(c, 0, c.length)) != -1)
-                                out.write(c, 0, slen);
-                        }
+                InputStream is1 = new ByteArrayInputStream(baos.toByteArray());
+                InputStream is2 = new ByteArrayInputStream(baos.toByteArray());
+                boolean isV = DESUtility.isEncrypted(is1);
+                if (isV) {
+                    byte[] data = DESUtility.transStreamToBytes(is2, is2.available());
+                    String fileName = DESUtility.getFileNameWithNoSuffix(path);
+                    String result = DESUtility.htmlDecode(data, fileName, appkey);
+                    InputStream is = new ByteArrayInputStream(result.getBytes());
+                    if (file.exists()) {
+                        file.delete();
+                        FileOutputStream out = new FileOutputStream(new File(path));
+                        byte[] c = new byte[1024 * 2];
+                        int slen;
+                        while ((slen = is.read(c, 0, c.length)) != -1)
+                            out.write(c, 0, slen);
                     }
                 }
+                widgetPathView.setText("解密路径：" + filePath);
+                Toast.makeText(DecryptActivity.this, "解密完成", Toast.LENGTH_SHORT).show();
             }
-            widgetPathView.setText(widgetPath);
-            Toast.makeText(DecryptActivity.this, "解密完成", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             e.printStackTrace();
         }
